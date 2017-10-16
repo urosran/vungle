@@ -2,54 +2,71 @@
 title: "Vungle"
 author: "Roopa,  Uros"
 date: "October 12, 2017"
-output: pdf_document
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-1. What is Vungle's data problem? What do they want to achieve? (1 Point)
-- They use 1/16 of the data to test the algorythm and they are trying to see which algorithm is the better one. The problem that arises is that the sample may be bised since it's such a small portion of the whole data set. Ideally they should have set that to be random as well. 
 
-2. Provide a brief description of the variables in the dataset. (1 Points)
-- We are provided the variales 
-3. What are the key variables for the manager? Are they present in the data? If not, how
-would you create them? (1 Point)
+Vungle uses 1/16 of the data to test the algorithm and they are trying to see which algorithm is the better one. The problem that arises is that the sample may be biased since it's such a small portion of the whole data set. Ideally they should have set the portion of the data to be much higher. 
 
-4. Provide summary statistics for key variables via appropriate plots or tables. Do they
-differ by Ad Campaign? (2 Points)
 
-5. How would you test for ad effectiveness from this data? What is the null and alternate
-hypotheses for your test(s)? (2 Points)
+The key variables for managers are the conversion rates and the price at which the actual impression or click was served. Meaning that the biggest problem in the data we have is the fact that we aren't able to calculate the actual contribution per each user step.  
 
-6. Conduct the hypothesis test(s) and interpret the results (2 Points)
-
-7. What is your final recommendation to the manager at Vungle? (1 Point)
 
 
 #Load the data and split it into two data frames for comparison 
 ```{r}
-install.packages('dplyr')
+#.libPaths(c("C:/Users/Uros Randelovic/Documents/R/win-library/3.3", "C:/Program Files/R/R-3.3.2/library"))
+
+install.packages('dplyr',repos = "http://cran.us.r-project.org")
 library(dplyr)
 
-install.packages('xlsx')
+install.packages('xlsx',repos = "http://cran.us.r-project.org")
 library(xlsx)
+install.packages('Rmisc',repos = "http://cran.us.r-project.org")
+library(Rmisc)
 data <- read.xlsx("C:/Users/Uros Randelovic/Documents/R workspace/BUS 111/Vungle/vungle data.xlsx",2
           )
-View(data)
+library(car)
+library(DescTools)
+#View(data)
+ 
+#split the data into different dataframes
+```
 
+```{r}
 Data1 <- subset(data, Strategy %in% c("Vungle A"))
 Data2 <- subset(data, Strategy =="Vungle B")
-View(Data1)
-View(Data2)
-#drop uncessary columns
+#View(Data1)
+#View(Data2)
+```
+
+From the following piece of code We observe only absolute numbers that each strategy yielded without knowing how many customers have actually been assigned to each case. The fact that we only have absolute numbers makes it hard for us to compare the strategies. variables that we have been given are absolute numbers of users that went trough each segment of the conversion process. They are each continuous variables excluding date which we disregard in future analysis (row number is a proxy for the date).
+
+```{r}
+#drop uncessary empty columns to clean the data and leave only columns with data in them
 Data1 <- subset(Data1, select = c(1:7))
 Data2 <- subset(Data2, select = c(1:7))
-#since the absoulte numbers are different calculate rations provided in the case
-#to compare the models 
-#TODO: charts exploring the data
+#since the absoulte numbers are different calculate rations provided in the case to compare the models 
 
+
+summary(Data1)
+```
+
+```{r}
+summary(Data2)
+```
+
+Summary statistics differ from each other because we have only absolute numbers thus making it impossible for us to compare them. The only variable we can compare is the eRPM where we observe that B outperforms A, as stated in the case, but we do not know which other variable affected it, if any. We now proceed to create new variables that will help us compare these two data sets. 
+
+
+```{r}
 #creating a dataframe to store the calculations
 compareData <- data.frame(fillRate=double(),
                  completeRate=double(),
@@ -57,53 +74,125 @@ compareData <- data.frame(fillRate=double(),
                  conversionRate=double(),
                  stringsAsFactors=FALSE)
 
-View(compareData)
+
 #equalize the number of rows
-compareData <- cbind(Data1,compareData)
+compareData <- rbind(Data1, compareData)
 #delete all columns
 compareData <- subset(compareData, select = -c(1:28))
-#dataset 1
+
+#dataset 1 - calculate each ratio to be used later on for comparison
 Data1$completeRate <- Data1$Completes/Data1$Impressions
 Data1$clickRate <- Data1$Clicks/Data1$Impressions
 Data1$conversionRate <- Data1$Installs/Data1$Impressions
+
+#we explore how each of the rates interacts with the the revenue figure
+summary(lm(Data1$eRPM ~ Data1$completeRate+Data1$clickRate+Data1$conversionRate))
+
+```
+From the above we see that rates explain 50% of the variance in the eRPM  but also show that conversion rate is the only significant variable. 
+
+We proceed to look at how each of the created variables correlate with each other to determine if there is significant relationship between eRPM and the ratios
+```{r}
+Data1 <- subset(Data1, select = -c(Data1$Strategy) )
+Data1 <- within(Data1, rm("Date"))
+corrplot::corrplot(cor(Data1),method="number")
+```
+
+```{r}
 #load to compare data frame
 compareData <- cbind(Data1$completeRate,compareData)
 compareData <- cbind(Data1$clickRate,compareData)
 compareData <- cbind(Data1$conversionRate,compareData)
-summary(compareData)
-```
 
+```
+We repeat the same process for the strategy B
 
 ```{r}
 #dataset 2
-Data2$completeRate <- Data2$Completes/Data1$Impressions
-Data2$clickRate <- Data2$Clicks/Data1$Impressions
-Data2$conversionRate <- Data2$Installs/Data1$Impressions
+Data2$completeRate <- Data2$Completes/Data2$Impressions
+Data2$clickRate <- Data2$Clicks/Data2$Impressions
+Data2$conversionRate <- Data2$Installs/Data2$Impressions
+
+
+data2LM <-lm(Data2$eRPM ~ Data2$completeRate+Data2$clickRate+Data2$conversionRate)
+summary(data2LM)
+```
+From the above we see that rates explain only 15% of the variance in the eRPM but also show that there are no significant variables compared to algorithm A which had much better R^2. This is consistent with our hypothesis that the sample of 1/16 of the users is not a representative. 
+
+```{r}
+Data2 <- subset(Data2, select = -c(Data2$Strategy) )
+Data2 <- within(Data2, rm("Date"))
+corrplot::corrplot(cor(Data1),method="number")
+```
+
+From the correlation plots for both data sets we observe that the variables correlate with each other almost exactly the same showing us that there isn't a significant difference in the user journey from impression to installs. 
+
+```{r}
+
 #load to compare data frame
 compareData <- cbind(Data2$completeRate,compareData)
 compareData <- cbind(Data2$clickRate,compareData)
 compareData <- cbind(Data2$conversionRate,compareData)
-#TODO: add a summary table
 summary(compareData)
 ```
 
 
 ```{r}
-#differences in ratios 
+#differences in ratios to determine the effectiveness of B over A
 compareData$clickDiff <- compareData$`Data2$clickRate`- compareData$`Data1$clickRate`
 compareData$completeDiff <- compareData$`Data2$completeRate`- compareData$`Data1$completeRate`
-compareData$converseionDiff <- compareData$`Data2$conversionRate`- compareData$`Data1$conversionRate`
-#summary table of these three variables - means that algorithm b did a porer job than the algorythm A
+compareData$conversionDiff <- compareData$`Data2$conversionRate`- compareData$`Data1$conversionRate`
 
 #calculate erpm difference
 compareData$erpmDiff <- Data2$eRPM- Data1$eRPM
-#look at the side by side comparison of A and B algorythm and their effectiveness
-summary(select(.data = compareData, clickDiff, completeDiff,converseionDiff,erpmDiff))
+#look at the side by side comparison of A and B algorythm and their effectiveness on erpm
+summary(select(.data = compareData, clickDiff, completeDiff,conversionDiff,erpmDiff))
 ```
-
+Summary table of these three variables shows us that algorithm B did a poorer job than the algorithm A since it yielded a lower ratio in each of the three categories except the income that was generated from the algorithm B. It seems that on average B generated .16$ more than A.
+Reason for this might be the fact that the ad campaigns that were served were just more expensive. We are not provided data about the cost thus we cannot make such inferences but should be aware of potential sample bias. 
 
 
 ```{r}
+#testing the means
+#Ho: The differnece is not statistically significant at 99% confidence 
+#H1: The difference is statistically signifiacnt at 99% confidence 
+MeanCI(compareData$erpmDiff,
+       conf.level=0.99)
 
 ```
+
+We conclude that difference in eRPM is statistically significant at 99% confidence interval.
+```{r}
+summary(lm(compareData$erpmDiff~compareData$conversionDiff))
+```
+From the output above we see that conversion rate explains only 30% of the variance in data thus we conclude that the relationship in the difference between conversion rates does not really explain difference in eRPMs. 
+
+
+From the plots below we observe the samples and see that algorithm B has many more outliers then algorithm A thus skewing our averages.
+
+```{r}
+scatterplot(Data2$eRPM~Data2$clickRate|Data2$clickRate, data=Data2)
+
+```
+
+```{r}
+scatterplot(Data1$eRPM~Data1$clickRate|Data1$clickRate, data=Data1)
+
+```
+
+```{r}
+scatterplot(compareData$erpmDiff~compareData$clickDiff|compareData$clickDiff, data=compareData)
+```
+Here we observe an odd relationship where with less clicks we have a higher eRPM. 
+
+
+In conclusion, we determine that we cannot conclude if algorithm B is better than A due to the sample that is not representative. Even though we show that difference in eRPMs is significant at 99% confidence level we would need more data from the manager to make a certain conclusion. Ir is recommended to repeat the test with a larger portion of customers served by B to eliminate such high variation in data points as well as recording the price of served ads because B might be really good at serving high paying ads to customers thus earning better margin despite lower ratios. 
+
+
+
+
+
+
+
+
 
